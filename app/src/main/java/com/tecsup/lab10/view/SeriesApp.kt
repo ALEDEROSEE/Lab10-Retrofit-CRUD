@@ -81,7 +81,7 @@ fun BarraSuperior() {
                fontWeight = FontWeight.Bold
            )
        },
-       colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+       colors = TopAppBarDefaults.topAppBarColors(
            containerColor = MaterialTheme.colorScheme.primary
        )
    )
@@ -89,19 +89,22 @@ fun BarraSuperior() {
 
 @Composable
 fun BarraInferior(navController: NavHostController) {
+   // currentDestination no es un estado de Compose: la barra no se enteraba de que habia cambiado de ruta
+   val entrada by navController.currentBackStackEntryAsState()
+   val ruta = entrada?.destination?.route
    NavigationBar(
        containerColor = Color.LightGray
    ) {
        NavigationBarItem(
            icon = { Icon(Icons.Outlined.Home, contentDescription = "Inicio") },
            label = { Text("Inicio") },
-           selected = navController.currentDestination?.route == "inicio",
+           selected = ruta == "inicio",
            onClick = { navController.navigate("inicio") }
        )
        NavigationBarItem(
            icon = { Icon(Icons.Outlined.Favorite, contentDescription = "Series") },
            label = { Text("Series") },
-           selected = navController.currentDestination?.route == "series",
+           selected = ruta == "series" || ruta?.startsWith("serie") == true,
            onClick = { navController.navigate("series") }
        )
    }
