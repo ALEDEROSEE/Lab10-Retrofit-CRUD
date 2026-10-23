@@ -23,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
@@ -35,6 +36,7 @@ import androidx.navigation.NavHostController
 import com.tecsup.lab10.data.SerieApiService
 import com.tecsup.lab10.data.SerieModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun ContenidoSeriesListado(navController: NavHostController, servicio: SerieApiService) {
@@ -123,16 +125,29 @@ fun ContenidoSerieEditar(navController: NavHostController, servicio: SerieApiSer
    var release_date by remember { mutableStateOf<String?>("") }
    var rating by remember { mutableStateOf<String?>("") }
    var category by remember { mutableStateOf<String?>("") }
-   var grabar by remember { mutableStateOf(false) }
+   var grabando by remember { mutableStateOf(false) }
+   var mensaje by remember { mutableStateOf<String?>(null) }
+   val scope = rememberCoroutineScope()
 
    if (id != 0) {
        LaunchedEffect(Unit) {
-           val objSerie = servicio.selectSerie(id.toString())
-           delay(100)
-           name = objSerie.body()?.name
-           release_date = objSerie.body()?.release_date
-           rating = objSerie.body()?.rating.toString()
-           category = objSerie.body()?.category
+           try {
+               val objSerie = servicio.selectSerie(id.toString())
+               delay(100)
+               val s = objSerie.body()
+               if (s == null) {
+                   // el servidor responde 500 si la serie ya no existe (Serie.objects.get lanza DoesNotExist)
+                   mensaje = "No se pudo leer la serie (el servidor respondio ${objSerie.code()})"
+               } else {
+                   name = s.name
+                   release_date = s.release_date
+                   rating = s.rating.toString()
+                   category = s.category
+               }
+           } catch (e: Exception) {
+               Log.e("SERIE-VER", "No se pudo leer la serie", e)
+               mensaje = "No se pudo leer la serie: ${e.message}"
+           }
        }
    }
 
@@ -174,24 +189,34 @@ fun ContenidoSerieEditar(navController: NavHostController, servicio: SerieApiSer
            singleLine = true
        )
        Button(
+           enabled = !grabando,
            onClick = {
-               grabar = true
+               // el rating tiene que ser un numero: con toInt() a secas un campo vacio tumba la app
+               val calif = rating?.toIntOrNull()
+               if (name.isNullOrBlank() || release_date.isNullOrBlank() || calif == null || category.isNullOrBlank()) {
+                   mensaje = "Completa todos los campos (el rating es un numero)"
+                   return@Button
+               }
+               grabando = true
+               // la peticion sale desde el onClick, en un scope que sobrevive a la navegacion
+               scope.launch {
+                   try {
+                       val objSerie = SerieModel(id, name!!, release_date!!, calif, category!!)
+                       val r = if (id == 0) servicio.insertSerie(objSerie) else servicio.updateSerie(id.toString(), objSerie)
+                       if (r.isSuccessful) navController.navigate("series") else mensaje = "El servidor respondio ${r.code()}"
+                   } catch (e: Exception) {
+                       Log.e("SERIE-GRABAR", "No se pudo grabar", e)
+                       mensaje = "No se pudo grabar: ${e.message}"
+                   }
+                   grabando = false
+               }
            }
        ) {
-           Text("Grabar", fontSize=16.sp)
+           Text(if (grabando) "Grabando..." else "Grabar", fontSize=16.sp)
        }
-   }
-
-   if (grabar) {
-       val objSerie = SerieModel(id,name!!, release_date!!, rating!!.toInt(), category!!)
-       LaunchedEffect(Unit) {
-           if (id == 0)
-               servicio.insertSerie(objSerie)
-           else
-               servicio.updateSerie(id.toString(), objSerie)
+       if (mensaje != null) {
+           Text(mensaje!!, color = Color.Red, modifier = Modifier.padding(top = 8.dp))
        }
-       grabar = false
-       navController.navigate("series")
    }
 }
 
