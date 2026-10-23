@@ -223,36 +223,43 @@ fun ContenidoSerieEditar(navController: NavHostController, servicio: SerieApiSer
 @Composable
 fun ContenidoSerieEliminar(navController: NavHostController, servicio: SerieApiService, id: Int) {
    var showDialog by remember { mutableStateOf(true) }
-   var borrar by remember { mutableStateOf(false) }
+   var mensaje by remember { mutableStateOf<String?>(null) }
+   val scope = rememberCoroutineScope()
 
    if (showDialog) {
        AlertDialog(
-           onDismissRequest = { showDialog = false },
+           onDismissRequest = { navController.navigate("series") },
            title = { Text(text = "Confirmar Eliminación") },
-           text = {  Text("¿Está seguro de eliminar la Serie?") },
+           text = {
+               Column {
+                   Text("¿Está seguro de eliminar la Serie?")
+                   if (mensaje != null) Text(mensaje!!, color = Color.Red)
+               }
+           },
            confirmButton = {
                Button(
                    onClick = {
-                       showDialog = false
-                       borrar = true
+                       scope.launch {
+                           try {
+                               val r = servicio.deleteSerie(id.toString())
+                               // 404 = ya no existia: el resultado es el mismo que queria
+                               if (r.isSuccessful || r.code() == 404) navController.navigate("series")
+                               else mensaje = "El servidor respondio ${r.code()}"
+                           } catch (e: Exception) {
+                               Log.e("SERIE-DEL", "No se pudo eliminar", e)
+                               mensaje = "No se pudo eliminar: ${e.message}"
+                           }
+                       }
                    } ) {
                    Text("Aceptar")
                }
            },
            dismissButton = {
-               Button( onClick = { showDialog = false } ) {
+               // antes navigate() estaba dentro del contenido del boton: se ejecutaba al componer, sin que nadie lo pulsara
+               Button( onClick = { navController.navigate("series") } ) {
                    Text("Cancelar")
-                   navController.navigate("series")
                }
            }
        )
-   }
-   if (borrar) {
-       LaunchedEffect(Unit) {
-           // val objSerie = servicio.selectSerie(id.toString())
-           servicio.deleteSerie(id.toString())
-           borrar = false
-           navController.navigate("series")
-       }
    }
 }
