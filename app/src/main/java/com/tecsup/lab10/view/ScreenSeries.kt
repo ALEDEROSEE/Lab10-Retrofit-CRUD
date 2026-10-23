@@ -2,6 +2,7 @@ package com.tecsup.lab10.view
 
 import android.util.Log
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -26,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,14 +39,27 @@ import kotlinx.coroutines.delay
 @Composable
 fun ContenidoSeriesListado(navController: NavHostController, servicio: SerieApiService) {
    var listaSeries: SnapshotStateList<SerieModel> = remember { mutableStateListOf() }
+   var errorRed by remember { mutableStateOf<String?>(null) }
    LaunchedEffect(Unit) {
-       val listado = servicio.selectSeries()
-       listado.forEach { listaSeries.add(it) }
+       // sin try/catch una excepcion de red sale del LaunchedEffect y tumba la app
+       try {
+           val listado = servicio.selectSeries()
+           listado.forEach { listaSeries.add(it) }
+       } catch (e: Exception) {
+           Log.e("SERIE-LISTA", "No se pudo traer el listado", e)
+           errorRed = e.message ?: e.javaClass.simpleName
+       }
    }
 
    LazyColumn (
-
+       // deja espacio al final para que el boton + no tape los iconos de la ultima fila
+       contentPadding = PaddingValues(bottom = 88.dp)
    ){
+       if (errorRed != null) {
+           item {
+               Text("No pude traer las series: $errorRed", color = Color.Red, modifier = Modifier.padding(16.dp))
+           }
+       }
        item {
            Row (
                modifier = Modifier.fillParentMaxWidth(),
